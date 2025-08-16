@@ -1,11 +1,10 @@
-# Procedural Clipmap Terrain Generator
+# Infinite Procedural Terrain with Clipmaps
 
-This is a procedural terrain generator based off of the theory presented by Mike J Savage:
-[https://mikejsavage.co.uk/geometry-clipmaps/](https://mikejsavage.co.uk/geometry-clipmaps/)
+This project is a procedural terrain generator inspired by the work of Mike J Savage:  
+[https://mikejsavage.co.uk/geometry-clipmaps/](https://mikejsavage.co.uk/geometry-clipmaps/)  
+Built in Godot, it leverages double-precision arithmetic to support virtually infinite terrain with high accuracy and stability.
 
-The implementation in godot utlilizes double precision, allowing for a virtually infinite terrain.
-
-## Basic Idea
+## Core Concepts
 
 Terrain in the engine is generated using heightmaps, which are grayscale textures produced by a custom C++ noise generator. These heightmaps are fed into vertex shaders, which adjust the position of each vertex based on the height value stored in the red channel of the texture. This allows the surface of the terrain to update quickly and dynamically.
 
