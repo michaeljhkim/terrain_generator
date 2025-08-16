@@ -24,10 +24,10 @@ This creates smooth transitions between chunks without resorting to heavier tech
 Geometry alone isn’t enough, though — lighting can break if normals are only calculated from the mesh resolution. To solve this, all heightmaps are generated at full quality regardless of the mesh’s vertex density. The fragment shader then interpolates lighting values as if every chunk had the same number of vertices. This has two major benefits:
 - Normals look smooth across all chunks, no matter the LOD.
 - Heightmaps can be reused freely across meshes of different resolutions.
-Generating every heightmap at full quality adds some cost, but it solves multiple rendering problems at once and keeps the terrain looking consistent.
 
+Generating every heightmap at full quality adds some cost, but it solves multiple rendering problems at once and keeps the terrain looking consistent.  
 The system also adapts as the camera moves. When the camera crosses certain thresholds, chunks are shifted around dynamically to keep coverage continuous without rendering unnecessary detail:
-<img src="showcase/wireframe_demo.gif" width="640"/>
-<img src="showcase/normal_demo.gif" width="640"/>
+<img src="showcase/wireframe_demo.gif" width="320"/>
+<img src="showcase/normal_demo.gif" width="320"/>
 
 Behind the scenes, all heightmaps are stored in a HashMap, with their keys representing world-space coordinates. If a heightmap for a given location doesn’t exist yet, it gets generated on the fly. Otherwise, the existing one is reused. Since shaders only need references to these textures (not copies), assigning them to chunks is fast and lightweight.

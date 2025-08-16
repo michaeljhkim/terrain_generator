@@ -149,14 +149,15 @@ public:
 
 	// re-init terrain for low-level paramater changes
 	void setter_process(bool is_null, String p_name) {
+		String msg = "ADD";
 		if (is_null) {
-			DEBUG_PRINT_RARE("REMOVE " + p_name);
+			msg = "REMOVE";
 			_exit_tree();
-			return;
 		}
-		DEBUG_PRINT_RARE("ADD " + p_name);
-		if (ready_queued.load()) return;
-		ready_queued.store(true);
-		_ready();
+		else if (!ready_queued.load()) { 
+			ready_queued.store(true);
+			_ready();
+		}
+		DEBUG_PRINT_RARE(msg, p_name);
 	}
 };
