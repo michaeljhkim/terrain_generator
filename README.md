@@ -1,7 +1,9 @@
 # Infinite Procedural Terrain with Clipmaps
 
-This project is a procedural terrain generator inspired by the work of Mike J Savage:  
-[https://mikejsavage.co.uk/geometry-clipmaps/](https://mikejsavage.co.uk/geometry-clipmaps/)  
+This project is a procedural terrain generator inspired by the work of Mike J Savage and TheGodojo:
+- [https://mikejsavage.co.uk/geometry-clipmaps/](https://mikejsavage.co.uk/geometry-clipmaps/)  
+- [https://github.com/TheGodojo/Massive-Terrain-LOD-And-Stitching-COMPLETE](https://github.com/TheGodojo/Massive-Terrain-LOD-And-Stitching-COMPLETE)
+
 Built in Godot, it leverages double-precision arithmetic to support virtually infinite terrain with high accuracy and stability.
 
 ## Core Concepts
@@ -30,3 +32,11 @@ The system also adapts as the camera moves. When the camera crosses certain thre
 <img src="showcase/normal_demo.gif" width="320"/>
 
 Behind the scenes, all heightmaps are stored in a HashMap, with their keys representing world-space coordinates. If a heightmap for a given location doesn’t exist yet, it gets generated on the fly. Otherwise, the existing one is reused. Since shaders only need references to these textures (not copies), assigning them to chunks is fast and lightweight.
+
+
+
+## Design Alternatives
+
+GPU noise generation was considered, but the CPU would need to get heightmaps for collision meshes. The sync times and VRAM strage size were too costly. Double precision based noise generation would also not be possible. 
+
+GPU Mesh Tessellation was considered, as it would increase consistency, and smoother LOD transitions. However, it appears that modern renderers do not implement tessellation in the same way older apis did. Godot does not support tessellations, and the gains compared to the effort required to implement the shader pipeline would not be justified.
