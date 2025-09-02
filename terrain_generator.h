@@ -16,7 +16,7 @@ protected:
 	int seed = 0;
 	int render_distance = 6;
 	std::atomic_bool ready_queued = {true};
-	NodePath _player_node_path;
+	NodePath player_node_path;
 
 	/*
 	* COLLISION MAPPING MEMBERS
@@ -39,6 +39,7 @@ protected:
 		}
 		return should_update;
 	}
+
 	void push_create_task(Vector3 chunk_pos, Vector2i grid_pos) {
 		//auto hmap_data = reuse_pool.data_left() ? reuse_pool.read() : memnew(HeightMapData);
 		// take from reuse_pool if reuse_pool is not empty
@@ -51,9 +52,19 @@ protected:
 			DEBUG_PRINT_OFTEN("CREATE HEIGHTMAP DATA", chunk_pos);
 			hmap_data = memnew(HeightMapData);
 		}
-		create_tasks[chunk_pos] = WorkerThreadPool::get_singleton()->add_task(
-			callable_mp(this, &TerrainGenerator::create_chunk).bind(hmap_data, chunk_pos, grid_pos)
+		/*
+		Callable create_chunk = create_custom_callable_lambda(
+			this, [&](Ref<HeightMapData> p_hmap_data, Vector3 p_chunk_pos, Vector2i p_grid_pos) { 
+				p_hmap_data->_instantiate(p_chunk_pos, callable_mp(this, &TerrainGenerator::add_chunk).bind(p_hmap_data, p_chunk_pos, p_grid_pos)); 
+			}
 		);
+		*/
+		Callable create_chunk = create_custom_callable_lambda(
+			this, [=]() { 
+				hmap_data->_instantiate(chunk_pos, callable_mp(this, &TerrainGenerator::add_chunk).bind(hmap_data, chunk_pos, grid_pos)); 
+			}
+		);
+		create_tasks[chunk_pos] = WorkerThreadPool::get_singleton()->add_task(create_chunk);
 	}
 
 	/*
@@ -61,12 +72,12 @@ protected:
 	*/
     // Helper: get the actual CharacterBody3D node
     CharacterBody3D *get_player() const {
-        return !_player_node_path.is_empty() ? cast_to<CharacterBody3D>(get_node(_player_node_path)) : nullptr;
+        return !player_node_path.is_empty() ? cast_to<CharacterBody3D>(get_node(player_node_path)) : nullptr;
     }
 	// calculate player chunk -> convert global position to grid position
 	Vector3 player_chunk;
 	Vector3 calculate_player_chunk() const {
-		Vector3 p_chunk = (get_player()->get_global_position() / WorldData::LENGTH).round();
+		Vector3 p_chunk = (get_player()->get_global_position() / WorldData::length).round();
 		p_chunk.y = 0.0;
 		return p_chunk;
 	}
@@ -96,8 +107,6 @@ protected:
 	HashMap<Vector3, uint64_t> create_tasks;
 
 protected:
-	// Only for worker threads
-	void create_chunk(Ref<HeightMapData> hmap_data, Vector3 chunk_pos, Vector2i grid_pos);
 	// Only for main thread
 	void add_chunk(Ref<HeightMapData> hmap_data, Vector3 chunk_pos, Vector2i grid_pos);
 	void delete_far_away_chunks();
@@ -122,30 +131,22 @@ public:
 	* GDSCRIPT PARAMETERS 
 	*/
 
-	// PARAMETERS (STATIC) -> should convert for dynamic reloading
-	void set_step_size(const int8_t &new_step_exp) {
-		WorldData::STEP_EXP = new_step_exp;
-		WorldData::STEP_SIZE = 1 << WorldData::STEP_EXP;
-	}
-	void set_length(const int8_t &new_length_exp) {
-		WorldData::LENGTH_EXP = new_length_exp;
-		WorldData::LENGTH = 1 << WorldData::LENGTH_EXP;
-	}
-	void set_render_distance(const int &new_render_distance) { render_distance = new_render_distance; }
-	void set_seed(const int &new_seed) { seed = new_seed; }
+	CREATE_PROPERTY_REF(int, render_distance)
+	CREATE_PROPERTY_REF(int, seed)
 
-	// PARAMETERS (DYNAMIC)
-	void set_player_node_path(const NodePath &p_path);
-	void set_terrain_shader(Ref<Shader> p_shader);
-	void set_terrain_offset(const Vector3 &p_pos);
-	void set_terrain_amplitude(const real_t &new_amp);
-	void set_terrain_height_exp(const real_t &new_height_exp);
-
-	NodePath get_player_node_path() const { return _player_node_path; }
-	Ref<Shader> get_terrain_shader() const { return WorldData::terrain_shader; }
-	Vector3 get_terrain_offset() const { return WorldData::WORLD_OFFSET; };
-	real_t get_terrain_amplitude() const { return WorldData::AMPLITUDE; }
-	real_t get_terrain_height_exp() const { return WorldData::HEIGHT_EXP; }
+	CREATE_PROPERTY_REF_CUSTOM_STATIC(real_t, step_size, WorldData) { 
+		WorldData::step_exp = new_step_size;
+		WorldData::step_size = 1 << WorldData::step_exp;
+	}
+	CREATE_PROPERTY_REF_CUSTOM_STATIC(real_t, length, WorldData) {
+		WorldData::length_exp = new_length;
+		WorldData::length = 1 << WorldData::length_exp;
+	}
+	CREATE_PROPERTY_REF(NodePath, player_node_path)
+	CREATE_PROPERTY_REF_STATIC(Ref<Shader>, terrain_shader, WorldData)
+	CREATE_PROPERTY_REF_STATIC(Vector3, terrain_offset, WorldData)
+	CREATE_PROPERTY_REF_STATIC(real_t, terrain_amplitude, WorldData)
+	CREATE_PROPERTY_REF_STATIC(real_t, terrain_height_exp, WorldData)
 
 	// re-init terrain for low-level paramater changes
 	void setter_process(bool is_null, String p_name) {

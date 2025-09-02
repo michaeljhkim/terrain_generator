@@ -119,3 +119,56 @@ struct LODS {
         } return 0;
     }
 };
+
+
+#define CREATE_PROPERTY_VAL(type, name) 		\
+	void set_##name(type new_##name) {          \
+        if (name == new_##name) return;         \
+        name = new_##name;                      \
+    } 	\
+	type get_##name() const { return name; }
+
+// setter input is const reference
+#define CREATE_PROPERTY_REF(type, name) 		\
+	void set_##name(const type &new_##name) {   \
+        if (name == new_##name) return;         \
+        name = new_##name;                      \
+    } 	\
+	type get_##name() const { return name; }
+
+// setter input is const reference
+#define CREATE_PROPERTY_REF_STATIC(type, name, static_class) 	   \
+	void set_##name(const type &new_##name) {                      \
+        if (static_class::name == new_##name) return;              \
+        static_class::name = new_##name;                           \
+    } 	\
+	type get_##name() const { return static_class::name; }
+
+// setter is undefined
+#define CREATE_PROPERTY_REF_CUSTOM(type, name) 	\
+	type get_##name() const { return name; } 	\
+	void set_##name(const type &new_##name)
+
+#define CREATE_PROPERTY_REF_CUSTOM_STATIC(type, name, static_class) 	\
+	type get_##name() const { return static_class::name; } 	\
+	void set_##name(const type &new_##name)
+
+// value requires mutex
+#define CREATE_PROPERTY_REF_MUTEX(type, name, p_mutex) 	\
+	void set_##name(const type &new_##name) { MutexLock mutex_lock(p_mutex); name = new_##name; } 	\
+	type get_##name() const { MutexLock mutex_lock(p_mutex); return name; }
+
+// bind method to button property
+#define BIND_BUTTON_PROP(class, name, editor_name)	\
+	ClassDB::bind_method(D_METHOD(#name), &class::name);	\
+	ADD_PROPERTY(PropertyInfo(Variant::CALLABLE, #name, PROPERTY_HINT_TOOL_BUTTON, editor_name, PROPERTY_USAGE_EDITOR), "", #name)
+
+// bind set/get methods
+#define BIND_SET_GET(class, name)	\
+	ClassDB::bind_method(D_METHOD("set_"#name, "new_"#name), &class::set_##name); 	\
+	ClassDB::bind_method(D_METHOD("get_"#name), &class::get_##name)
+
+// bind set/get methods and add as property
+#define BIND_SET_GET_PROP(class, name, type, ...) 	\
+	BIND_SET_GET(class, name);	\
+	ADD_PROPERTY(PropertyInfo(type, #name, __VA_ARGS__), "set_"#name, "get_"#name)

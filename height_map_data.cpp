@@ -6,23 +6,23 @@ RID WorldData::world_scenario;
 Ref<Shader> WorldData::terrain_shader;
 
 int WorldData::SEED;
-real_t WorldData::HEIGHT_EXP;
-uint8_t WorldData::STEP_EXP;
-real_t WorldData::STEP_SIZE;
-uint8_t WorldData::LENGTH_EXP;
-real_t WorldData::LENGTH;
-real_t WorldData::AMPLITUDE;
-real_t WorldData::LOD_LIMIT;
+real_t WorldData::terrain_height_exp;
+uint8_t WorldData::step_exp;
+real_t WorldData::step_size;
+uint8_t WorldData::length_exp;
+real_t WorldData::length;
+real_t WorldData::terrain_amplitude;
+real_t WorldData::lod_limit;
 
-Vector3 WorldData::WORLD_OFFSET;
-int WorldData::H_RESOLUTION;
+Vector3 WorldData::terrain_offset;
+int WorldData::h_resolution;
 
 FastNoiseLite::NoiseType WorldData::noise_type;
 FastNoiseLite::FractalType WorldData::fractal_type;
-real_t WorldData::NOISE_FREQUENCY;
-real_t WorldData::FRACTAL_OCTAVES;
-real_t WorldData::FRACTAL_LACUNARITY;
-real_t WorldData::FRACTAL_GAIN;
+real_t WorldData::noise_frequency;
+real_t WorldData::fractal_octaves;
+real_t WorldData::fractal_lacunarity;
+real_t WorldData::fractal_gain;
 
 
 HeightMapData::HeightMapData() {
@@ -35,21 +35,21 @@ HeightMapData::~HeightMapData() {
 
 void HeightMapData::setup_height_map(Size2 size, Vector3 position) {
 	// maximum vertex count (subdivide_w * subdivide_d)
-	subdivide_w = (WorldData::LENGTH / WorldData::STEP_SIZE) + 1.0;
-	subdivide_d = (WorldData::LENGTH / WorldData::STEP_SIZE) + 1.0;
+	subdivide_w = (WorldData::length / WorldData::step_size) + 1.0;
+	subdivide_d = (WorldData::length / WorldData::step_size) + 1.0;
 
 	// shifted by half chunk size
-	world_position = (Vector3(size.x, 0, size.y) * -0.5) + (position * WorldData::LENGTH);
+	world_position = (Vector3(size.x, 0, size.y) * -0.5) + (position * WorldData::length);
 	// one step for padding (smooth normals)
-	start_pos = world_position + Vector3(WorldData::STEP_SIZE, 0, WorldData::STEP_SIZE);
-	end_pos = start_pos + Vector3(WorldData::LENGTH, 0, WorldData::LENGTH);
+	start_pos = world_position + Vector3(WorldData::step_size, 0, WorldData::step_size);
+	end_pos = start_pos + Vector3(WorldData::length, 0, WorldData::length);
 
 	/*
 	* FORMAT_RH (16-bit float) -> a good balance between size and accuracy
 	* FORMAT_R8 (8-bit float) -> way smaller size, and accuracy drop MIGHT be worth it
 	*/
 	if (height_map.is_null()) {
-		height_map.instantiate(WorldData::H_RESOLUTION, WorldData::H_RESOLUTION, false, Image::Format::FORMAT_RF);
+		height_map.instantiate(WorldData::h_resolution, WorldData::h_resolution, false, Image::Format::FORMAT_RF);
 	}
 
 	int j_start = 0;

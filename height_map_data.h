@@ -2,6 +2,7 @@
 
 // For multi-threading
 #include "custom_types/helper_types.h"
+#include "custom_types/callable_lambda.h"
 
 #include <optional>
 
@@ -18,28 +19,28 @@ public:
     * 512x512 is the practical maximum
     * anything above is overkill and a waste of compute
     * 
-    * H_RESOLUTION = 2 ** (length_exp - step_exp) + 1 + padding
+    * h_resolution = 2 ** (length_exp - step_exp) + 1 + padding
     */
-    static real_t HEIGHT_EXP;
-    static uint8_t STEP_EXP;
-    static real_t STEP_SIZE;
-    static uint8_t LENGTH_EXP;
-    static real_t LENGTH;
-    static real_t AMPLITUDE;
-    static real_t LOD_LIMIT;
-    static int H_RESOLUTION;
+    static real_t terrain_height_exp;
+    static uint8_t step_exp;
+    static real_t step_size;
+    static uint8_t length_exp;
+    static real_t length;
+    static real_t terrain_amplitude;
+    static real_t lod_limit;
+    static int h_resolution;
     // Y ONLY OFFSET -> XZ NOT ACCOUNTED FOR CURRENTLY
-    static Vector3 WORLD_OFFSET;
+    static Vector3 terrain_offset;
 
     static FastNoiseLite::NoiseType noise_type;
     static FastNoiseLite::FractalType fractal_type;
-    static real_t NOISE_FREQUENCY;
+    static real_t noise_frequency;
     // number of noise calculations to run and add
-    static real_t FRACTAL_OCTAVES;
+    static real_t fractal_octaves;
     // change in frequency of successive octave
-    static real_t FRACTAL_LACUNARITY;
+    static real_t fractal_lacunarity;
     // reduces strength of successive octaves
-    static real_t FRACTAL_GAIN;
+    static real_t fractal_gain;
 };
 
 
@@ -60,13 +61,13 @@ class HeightMapData : public RefCounted {
     std::unique_ptr<Callable> post_generation;
 public:
     double true_height(real_t h) const {
-        return Math::pow(h * WorldData::AMPLITUDE, WorldData::HEIGHT_EXP) + WorldData::WORLD_OFFSET.y;
+        return Math::pow(h * WorldData::terrain_amplitude, WorldData::terrain_height_exp) + WorldData::terrain_offset.y;
     }
     float generate_normalized_height(int x, int z) const { return (noise->get_noise_2d(x,z) + 1.0) / 2.0; }
     float get_height_local(int x, int z) const { return true_height(height_map->get_pixel(x,z).r); }   // local within image, not position
 
-    real_t local_to_global_x(int i) { return start_pos.x + (i * WorldData::STEP_SIZE); }
-    real_t local_to_global_z(int j) { return start_pos.z + (j * WorldData::STEP_SIZE); }
+    real_t local_to_global_x(int i) { return start_pos.x + (i * WorldData::step_size); }
+    real_t local_to_global_z(int j) { return start_pos.z + (j * WorldData::step_size); }
 
     void setup_height_map(Size2 size, Vector3 position);
     void generate_height_map(int j_begin, int j_end);
@@ -79,8 +80,8 @@ public:
         return height_map;
     }
     float get_height_global(Vector3 global) {
-        Vector3 local = (world_position - global).abs().posmod(WorldData::LENGTH + WorldData::STEP_SIZE);
-        Vector3 scaled = (local / WorldData::STEP_SIZE).round() + Vector3(1,0,1);
+        Vector3 local = (world_position - global).abs().posmod(WorldData::length + WorldData::step_size);
+        Vector3 scaled = (local / WorldData::step_size).round() + Vector3(1,0,1);
         return get_height_local(scaled.x, scaled.z);
     }
     bool in_bounds(Vector3 global_pos) {
@@ -91,15 +92,15 @@ public:
 
     void update_noise_params() {
         noise->set_noise_type(WorldData::noise_type);
-        noise->set_frequency(WorldData::NOISE_FREQUENCY);
+        noise->set_frequency(WorldData::noise_frequency);
         
         noise->set_fractal_type(WorldData::fractal_type);
-        noise->set_fractal_octaves(WorldData::FRACTAL_OCTAVES);
-        noise->set_fractal_lacunarity(WorldData::FRACTAL_LACUNARITY);
-        noise->set_fractal_gain(WorldData::FRACTAL_GAIN);
+        noise->set_fractal_octaves(WorldData::fractal_octaves);
+        noise->set_fractal_lacunarity(WorldData::fractal_lacunarity);
+        noise->set_fractal_gain(WorldData::fractal_gain);
         /*
         noise->set_domain_warp_enabled(true);
-        noise->set_domain_warp_amplitude(50.0);
+        noise->set_domain_warp_terrain_amplitude(50.0);
         noise->set_domain_warp_frequency(0.45);
         noise->set_domain_warp_type(FastNoiseLite::DOMAIN_WARP_SIMPLEX);
         noise->set_domain_warp_fractal_octaves();
@@ -113,7 +114,7 @@ public:
             update_noise_params();
         }
         post_generation = std::make_unique<Callable>(p_callable); 
-        setup_height_map(Size2(WorldData::LENGTH, WorldData::LENGTH), new_pos);
+        setup_height_map(Size2(WorldData::length, WorldData::length), new_pos);
     }
 
 	static void _bind_methods();
@@ -141,7 +142,7 @@ public:
         update_position();
     }
     void update_position() {
-        world_transform.set_origin(chunk_position * WorldData::LENGTH + WorldData::WORLD_OFFSET);
+        world_transform.set_origin(chunk_position * WorldData::length + WorldData::terrain_offset);
         RS::get_singleton()->instance_set_transform(geometry_instance_rid, world_transform);
     }
 
@@ -150,7 +151,7 @@ public:
             height_map_texture = ImageTexture::create_from_image(hmap_image);
             // set shader
             shader_material->set_shader_parameter("heightmap", height_map_texture);
-            shader_material->set_shader_parameter("lod_limit", WorldData::LOD_LIMIT);
+            shader_material->set_shader_parameter("lod_limit", WorldData::lod_limit);
         }
         else {
             height_map_texture->update(hmap_image);
@@ -172,7 +173,7 @@ public:
     // controls mesh culling distances
     void set_mesh_aabb(const real_t &aabb_factor) const {
         AABB aabb;
-        aabb.grow_by(WorldData::LENGTH * aabb_factor);
+        aabb.grow_by(WorldData::length * aabb_factor);
         plane_mesh->set_custom_aabb(aabb);
     }
 
@@ -181,11 +182,11 @@ public:
         set_shader_material();
 
         int lod = 1 << lod_factor[LODS::CENTER];
-        int subdivide_w = (WorldData::LENGTH / (WorldData::STEP_SIZE * lod)) - 1;
-        int subdivide_d = (WorldData::LENGTH / (WorldData::STEP_SIZE * lod)) - 1;
+        int subdivide_w = (WorldData::length / (WorldData::step_size * lod)) - 1;
+        int subdivide_d = (WorldData::length / (WorldData::step_size * lod)) - 1;
 
         plane_mesh.instantiate();
-        plane_mesh->set_size(Size2(WorldData::LENGTH, WorldData::LENGTH));
+        plane_mesh->set_size(Size2(WorldData::length, WorldData::length));
         plane_mesh->set_subdivide_width(subdivide_w);
         plane_mesh->set_subdivide_depth(subdivide_d);
         plane_mesh->surface_set_material(0, shader_material);
@@ -202,6 +203,7 @@ public:
         if (geometry_instance_rid.is_valid()) {
             RS::get_singleton()->free(geometry_instance_rid);
         }
+        shader_material.unref();
         WorldData::terrain_shader.unref();
     }
 };

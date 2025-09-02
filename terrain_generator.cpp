@@ -28,6 +28,11 @@ void TerrainGenerator::_notification(int p_what) {
 		case NOTIFICATION_READY:
 			_ready();
 			break;
+		/*
+		case NOTIFICATION_SCENE_INSTANTIATED:
+			_ready();
+			break;
+		*/
 		case NOTIFICATION_PHYSICS_PROCESS:
 			_physics_process(get_physics_process_delta_time());
 			break;
@@ -52,23 +57,26 @@ void TerrainGenerator::_enter_tree() {
 	WorldData::world_scenario = get_world_3d()->get_scenario();
 
 	// default values
-    WorldData::STEP_EXP = 0;
-    WorldData::STEP_SIZE = 1 << WorldData::STEP_EXP;
-    WorldData::LENGTH_EXP = 6;
-    WorldData::LENGTH = 1 << WorldData::LENGTH_EXP;
-    WorldData::H_RESOLUTION = (1 << (WorldData::LENGTH_EXP - WorldData::STEP_EXP)) + 1 + 2;
+    WorldData::step_exp = 0;
+    WorldData::step_size = 1 << WorldData::step_exp;
+    WorldData::length_exp = 6;
+    WorldData::length = 1 << WorldData::length_exp;
+    WorldData::h_resolution = (1 << (WorldData::length_exp - WorldData::step_exp)) + 1 + 2;
 	// determines heights
-    WorldData::AMPLITUDE = 1.0;
-	WorldData::HEIGHT_EXP = 1.0;
+    WorldData::terrain_amplitude = 1.0;
+	WorldData::terrain_height_exp = 1.0;
 
 	// need to create set/get functions
     WorldData::noise_type = FastNoiseLite::TYPE_SIMPLEX_SMOOTH;
     WorldData::fractal_type = FastNoiseLite::FRACTAL_FBM;
-    WorldData::NOISE_FREQUENCY = 1.0 / (1000.0 * WorldData::STEP_SIZE);
-    WorldData::FRACTAL_OCTAVES = 10.0;
-    WorldData::FRACTAL_LACUNARITY = 2.0;
-    WorldData::FRACTAL_GAIN = 0.45;
+    WorldData::noise_frequency = 1.0 / (1000.0 * WorldData::step_size);
+    WorldData::fractal_octaves = 10.0;
+    WorldData::fractal_lacunarity = 2.0;
+    WorldData::fractal_gain = 0.45;
 
+	if (Engine::get_singleton()->is_editor_hint()) {
+		return;
+	}
 	/*
 	* COLLISION SETUP -> godot managed, do not make direct memory modifications
 	*/
@@ -94,24 +102,25 @@ void TerrainGenerator::_exit_tree() {
 	}
 	lod_meshes.clear();
 	chunk_table.clear();
-
 	_manual_collision_update = false;
+	
+	WorldData::terrain_shader.unref();
 }
 
 /*
 * READY
 */
 void TerrainGenerator::_ready() {
-	if (_player_node_path.is_empty()) return;
+	if (Engine::get_singleton()->is_editor_hint() || player_node_path.is_empty()) return;
 
-	RS::get_singleton()->global_shader_parameter_set("amplitude", WorldData::AMPLITUDE);
-	RS::get_singleton()->global_shader_parameter_set("vert_step_size", WorldData::STEP_SIZE);
-	RS::get_singleton()->global_shader_parameter_set("clipmap_partition_length", WorldData::LENGTH);
-	RS::get_singleton()->global_shader_parameter_set("height_exp", WorldData::HEIGHT_EXP);
+	RS::get_singleton()->global_shader_parameter_set("amplitude", WorldData::terrain_amplitude);
+	RS::get_singleton()->global_shader_parameter_set("vert_step_size", WorldData::step_size);
+	RS::get_singleton()->global_shader_parameter_set("clipmap_partition_length", WorldData::length);
+	RS::get_singleton()->global_shader_parameter_set("height_exp", WorldData::terrain_height_exp);
 	/*
 	GENERATE ALL LOD MESHES
 	*/
-	WorldData::LOD_LIMIT = WorldData::LENGTH_EXP - WorldData::STEP_EXP - 1.0;
+	WorldData::lod_limit = WorldData::length_exp - WorldData::step_exp - 1.0;
 
 	for (int z = -render_distance; z <= render_distance; z++) {
 		for (int x = -render_distance; x <= render_distance; x++) {
@@ -119,17 +128,17 @@ void TerrainGenerator::_ready() {
 				continue;
 			}
 			Vector2i coord = {x, z};
-			lod_meshes[coord].instantiate(LODS(x,z,WorldData::LOD_LIMIT), Vector3(x,0,z));
+			lod_meshes[coord].instantiate(LODS(x,z,WorldData::lod_limit), Vector3(x,0,z));
 		}
 	}
-	// + LENGTH -> chunks are added before deletion in process()
-	chunk_table.reserve(lod_meshes.size() + WorldData::LENGTH);
+	// + length -> chunks are added before deletion in process()
+	chunk_table.reserve(lod_meshes.size() + WorldData::length);
 	reuse_pool.resize(render_distance);
 	/*
 	* SETUP COLLISION MAP
 	*/
-	collision_size.x = 32 * WorldData::STEP_SIZE;
-	collision_size.y = 32 * WorldData::STEP_SIZE;
+	collision_size.x = 32 * WorldData::step_size;
+	collision_size.y = 32 * WorldData::step_size;
 	int sub_div = 31;
 	// initial mesh -> will not need later
 	PlaneMesh collision_mesh;
@@ -160,7 +169,7 @@ void TerrainGenerator::_ready() {
 * perhaps reduce subdivisions to 15x15 or even 7x7
 */
 void TerrainGenerator::_physics_process(double physics_delta) {
-	if (_player_node_path.is_empty()) return;
+	if (player_node_path.is_empty()) return;
 
 	// snap to nearest Chunk quadrant
 	real_t snap = collision_size.x / 2.0;
@@ -170,7 +179,7 @@ void TerrainGenerator::_physics_process(double physics_delta) {
 	if (collision_map->get_global_position() != player_rounded_position || _manual_collision_update) {
 		collision_map->set_global_position(player_rounded_position);
 
-		Vector3 center = calculate_player_chunk() * WorldData::LENGTH;
+		Vector3 center = calculate_player_chunk() * WorldData::length;
 		int x = (player_rounded_position.x <= center.x) ? -1 : 1;
 		int z = (player_rounded_position.z <= center.z) ? -1 : 1;
 		update_shape(x, z);
@@ -196,7 +205,7 @@ void TerrainGenerator::update_shape(int x, int z) {
 	Vector<Ref<HeightMapData>> nearest;
 	for (auto v : positions) {
 		auto itr = chunk_table.find(v);
-		_manual_collision_update = itr == chunk_table.end();
+		_manual_collision_update = (itr == chunk_table.end());
 		if (_manual_collision_update) { 
 			return;
 		}
@@ -222,7 +231,7 @@ void TerrainGenerator::update_shape(int x, int z) {
 * PROCESS
 */
 void TerrainGenerator::_process(double delta) {
-	if (_player_node_path.is_empty()) return;
+	if (Engine::get_singleton()->is_editor_hint() || player_node_path.is_empty()) return;
 	/*
 	TODO: account for diagonal chunk movement
 	*/
@@ -232,7 +241,7 @@ void TerrainGenerator::_process(double delta) {
 	if (player_chunk == new_player_chunk && !update_check()) { 
 		return;
 	}
-	RS::get_singleton()->global_shader_parameter_set("clipmap_position", new_player_chunk * WorldData::LENGTH);
+	RS::get_singleton()->global_shader_parameter_set("clipmap_position", new_player_chunk * WorldData::length);
 
 	// Try to generate chunks ahead of time based on where the player is moving.
 	//player_chunk.y += round(CLAMP(player_character->get_velocity().y, -render_distance/4, render_distance/4));
@@ -293,11 +302,6 @@ void TerrainGenerator::_process(double delta) {
 /*
 * CALLED FROM : _process()
 */
-void TerrainGenerator::create_chunk(Ref<HeightMapData> hmap_data, Vector3 chunk_pos, Vector2i grid_pos) {
-	hmap_data->_instantiate(
-		chunk_pos, callable_mp(this, &TerrainGenerator::add_chunk).bind(hmap_data, chunk_pos, grid_pos)
-	);
-}
 void TerrainGenerator::add_chunk(Ref<HeightMapData> hmap_data, Vector3 chunk_pos, Vector2i grid_pos) {
 	WorkerThreadPool::get_singleton()->wait_for_task_completion(create_tasks[chunk_pos]);
 
@@ -323,59 +327,17 @@ void TerrainGenerator::delete_far_away_chunks() {
 	}
 }
 
-/*
-* standard editor only exports 
-* player character used for position only (for now)
-*
-* if player is removed from loaded scene, de-spawn terrain
-* if player is added to empty scene, spawn terrain
-*/
-void TerrainGenerator::set_player_node_path(const NodePath &p_path) {
-	if (_player_node_path == p_path) return;
-	_player_node_path = p_path;
-	setter_process(_player_node_path.is_empty(), "PLAYER");
-}
-void TerrainGenerator::set_terrain_shader(Ref<Shader> p_shader) {
-	if (WorldData::terrain_shader == p_shader) return;
-	WorldData::terrain_shader = p_shader;
-	setter_process(WorldData::terrain_shader.is_null(), "SHADER");
-}
-void TerrainGenerator::set_terrain_offset(const Vector3 &p_pos) {
-	if (WorldData::WORLD_OFFSET == p_pos) return;
-	WorldData::WORLD_OFFSET = p_pos;
-	for (auto m : lod_meshes) {
-		m.value->update_position();
-	}
-}
-void TerrainGenerator::set_terrain_amplitude(const real_t &new_amp) {
-	if (WorldData::AMPLITUDE == new_amp) return;
-	WorldData::AMPLITUDE = new_amp;
-	RS::get_singleton()->global_shader_parameter_set("amplitude", new_amp);
-}
-void TerrainGenerator::set_terrain_height_exp(const real_t &new_height_exp) {
-	if (WorldData::HEIGHT_EXP == new_height_exp) return;
-	WorldData::HEIGHT_EXP = new_height_exp;
-	RS::get_singleton()->global_shader_parameter_set("height_exp", new_height_exp);
-}
-
 // properties are exposed in gdscript
 void TerrainGenerator::_bind_methods() {
 	// PARAMETERS (STATIC)
-	ClassDB::bind_method(D_METHOD("set_render_distance", "new_render_distance"), &TerrainGenerator::set_render_distance);
-	ClassDB::bind_method(D_METHOD("set_step_size", "new_step_exp"), &TerrainGenerator::set_step_size);
-	ClassDB::bind_method(D_METHOD("set_length", "new_length_exp"), &TerrainGenerator::set_length);
-	ClassDB::bind_method(D_METHOD("set_seed", "new_seed"), &TerrainGenerator::set_seed);
+	BIND_SET_GET(TerrainGenerator, render_distance);
+	BIND_SET_GET(TerrainGenerator, seed);
+	BIND_SET_GET(TerrainGenerator, player_node_path);
+	BIND_SET_GET(TerrainGenerator, step_size);
+	BIND_SET_GET(TerrainGenerator, length);
 
-	// PARAMETERS (DYNAMIC)
-	ClassDB::bind_method(D_METHOD("set_player_node_path", "p_path"), &TerrainGenerator::set_player_node_path);
-	ClassDB::bind_method(D_METHOD("set_terrain_shader", "p_shader"), &TerrainGenerator::set_terrain_shader);
-	ClassDB::bind_method(D_METHOD("set_terrain_offset", "p_pos"), &TerrainGenerator::set_terrain_offset);
-	ClassDB::bind_method(D_METHOD("set_terrain_amplitude", "new_amp"), &TerrainGenerator::set_terrain_amplitude);
-	ClassDB::bind_method(D_METHOD("set_terrain_height_exp", "new_height_exp"), &TerrainGenerator::set_terrain_height_exp);
-
-	ClassDB::bind_method(D_METHOD("get_player_node_path"), &TerrainGenerator::get_player_node_path);
-	ClassDB::bind_method(D_METHOD("get_terrain_shader"), &TerrainGenerator::get_terrain_shader);
-	ClassDB::bind_method(D_METHOD("get_terrain_offset"), &TerrainGenerator::get_terrain_offset);
-	ClassDB::bind_method(D_METHOD("get_terrain_amplitude"), &TerrainGenerator::get_terrain_amplitude);
-	ClassDB::bind_method(D_METHOD("get_terrain_height_exp"), &TerrainGenerator::get_terrain_height_exp);
+	BIND_SET_GET(TerrainGenerator, terrain_shader);
+	BIND_SET_GET(TerrainGenerator, terrain_offset);
+	BIND_SET_GET(TerrainGenerator, terrain_amplitude);
+	BIND_SET_GET(TerrainGenerator, terrain_height_exp);
 }
