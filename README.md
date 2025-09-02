@@ -5,6 +5,7 @@ This project is a procedural terrain generator inspired by the work of Mike J Sa
 - [https://github.com/TheGodojo/Massive-Terrain-LOD-And-Stitching-COMPLETE](https://github.com/TheGodojo/Massive-Terrain-LOD-And-Stitching-COMPLETE)
 
 Built in Godot, it leverages double-precision arithmetic to support virtually infinite terrain with high accuracy and stability.
+NOTE: prior to indvidual repo, this project was created in a test repository. Prior commits and changes may not be viewable.
 
 ## Core Concepts
 
