@@ -41,3 +41,10 @@ Behind the scenes, all heightmaps are stored in a HashMap, with their keys repre
 GPU noise generation was considered, but the CPU would need to get heightmaps for collision meshes. The sync times and VRAM strage size were too costly. Double precision based noise generation would also not be possible. 
 
 GPU Mesh Tessellation was considered, as it would increase consistency, and smoother LOD transitions. However, it appears that modern renderers do not implement tessellation in the same way older apis did. Godot does not support tessellations, and the gains compared to the effort required to implement the shader pipeline would not be justified.
+
+
+## Compilation (Linux)
+```
+cd <godot-filepath>/godot/
+scons platform=linuxbsd precision=double debug_symbols=yes debug=yes use_llvm=yes use_static_cpp=yes threads=yes linker=mold custom_modules=<modules-filepath>/modules
+```
